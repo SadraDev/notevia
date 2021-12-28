@@ -1,2 +1,2 @@
 <?php
-echo 'bizad';
+echo 'you are connected';
