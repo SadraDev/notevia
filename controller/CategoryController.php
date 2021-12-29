@@ -6,6 +6,7 @@ class CategoryController
     private array $post;
     private mysqli $conn;
     private array $response;
+
     public function __construct($post, $db)
     {
         $this->db = $db;
@@ -25,34 +26,46 @@ class CategoryController
         }
 
         switch ($apiType) {
-            case 'insert': {
-                    // $categoryName = @$this->post['name'];
-                    // $parentId = @$this->post['parentId'];
-                    // $userId = @$this->post['userId'];
-                    // $array = [];
+            case 'insert':
+            {
+                if (!isset($this->post['name'])) array_push($this->response, 'name required');
+                if (!isset($this->post['parentId'])) array_push($this->response, 'parentId required');
+                if (!isset($this->post['userId'])) array_push($this->response, 'userId required');
 
-                    if (isset($this->post['name'])) array_push($this->response, 'name required');
-                    if (isset($this->post['parentId'])) array_push($this->response, 'parentId required');
-                    if (isset($this->post['userId'])) array_push($this->response, 'userId required');
+                if (count($this->response) > 0) {
+                    exit(json_encode([
+                        'result' => false,
+                        'error' => $this->response
+                    ]));
+                }
+                break;
+            }
+            case 'select':
+            {
+                if (!isset($this->post['parentId'])) array_push($this->response, 'parentId required');
+                if (!isset($this->post['userId'])) array_push($this->response, 'userId required');
 
-                    // array_push($array, $categoryName, $parentId, $userId);
-                    //count($array) != 3
-                    if (count($this->response) > 0) {
-                        exit(json_encode([
-                            'result' => false,
-                            'error' => $this->response
-                        ]));
-                    }
-                    break;
+                if (count($this->response) > 0) {
+                    exit(json_encode([
+                        'result' => false,
+                        'error' => $this->response
+                    ]));
                 }
-            case 'select': {
-                    //todo add select
-                    break;
+                break;
+            }
+            case 'delete':
+            {
+                if (!isset($this->post['id'])) array_push($this->response, 'id required');
+                if (!isset($this->post['userId'])) array_push($this->response, 'userId required');
+
+                if (count($this->response) > 0) {
+                    exit(json_encode([
+                        'result' => false,
+                        'error' => $this->response
+                    ]));
                 }
-            case 'delete': {
-                    //todo add delete
-                    break;
-                }
+                break;
+            }
         }
         return true;
     }
@@ -70,6 +83,39 @@ class CategoryController
                     'msg' => 'category inserted'
                 ]
             );
+        }
+    }
+
+    public function selectCategory()
+    {
+        $stmt = "SELECT * FROM `tbl_category` where `parent_id` = ? and `user_id` = ? and`deleted` = false";
+        $stmt = $this->conn->prepare($stmt);
+        $stmt->bind_param('ii', $this->post['parentId'], $this->post['userId']);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $categories = array();
+
+        while ($row = $result->fetch_assoc()) {
+            $categories[] = $row;
+        }
+        echo json_encode(
+            [
+                'result' => true,
+                'categories' => $categories
+            ]
+        );
+    }
+
+    public function deleteCategory()
+    {
+        $stmt = "UPDATE `tbl_category` set `deleted` = true where `user_id` = ? and `id` = ?";
+        $stmt = $this->conn->prepare($stmt);
+        $stmt->bind_param('ii', $this->post['userId'], $this->post['id']);
+        if ($stmt->execute()){
+            echo json_encode([
+                'result' => true,
+                'msg' => 'deleted'
+            ]);
         }
     }
 }

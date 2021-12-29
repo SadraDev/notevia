@@ -12,7 +12,9 @@ if($uc->checkAuth() === true) {
     $cc = new CategoryController($_POST, $db);
 
     if($cc->checkParams() === true){
-        $cc->insertCategory();
+        if(@$_POST['apiType'] == 'insert') $cc->insertCategory();
+        if(@$_POST['apiType'] == 'select') $cc->selectCategory();
+        if(@$_POST['apiType'] == 'delete') $cc->deleteCategory();
     }
     
 }
