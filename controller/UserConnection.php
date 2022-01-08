@@ -210,7 +210,7 @@ class UserConnection
 
     private function updateOrInsertRandomCode($userId, $email)
     {
-        $rand = rand(10000, 99999);
+        $rand = rand(100000, 999999);
 
         $stmt = "SELECT * FROM tbl_auth WHERE user_id = ? ";
         $stmt = $this->conn->prepare($stmt);
