@@ -19,15 +19,13 @@ class UserConnection
 
     public function checkRegisterParams()
     {
-        if (!isset($this->data['name'])) {
-            array_push($this->response, 'name required!');
-        }
-        if (!isset($this->data['email'])) {
-            array_push($this->response, 'email required!');
-        }
-        if (!isset($this->data['password'])) {
-            array_push($this->response, 'password required!');
-        }
+        $name = @$this->data['name'];
+        $email = @$this->data['email'];
+        $password = @$this->data['password'];
+
+        if ($name == null or $name == '') array_push($this->response, 'name required!');
+        if ($email == null or $email == '') array_push($this->response, 'email required!');
+        if ($password == null or $password == '') array_push($this->response, 'password required!');
 
         if (count($this->response) > 0) {
             exit(
@@ -44,9 +42,9 @@ class UserConnection
 
     public function checkExist()
     {
-        $stmt = "SELECT * FROM `tbl_user` WHERE `name` = ? or `email` = ?";
+        $stmt = "SELECT * FROM `tbl_user` WHERE `email` = ?";
         $stmt = $this->conn->prepare($stmt);
-        $stmt->bind_param("ss", $this->data['name'], $this->data['email']);
+        $stmt->bind_param("s", $this->data['email']);
         $stmt->execute();
 
         $result = $stmt->get_result();
@@ -94,18 +92,16 @@ class UserConnection
         ]));
     }
 
-
-
     public function checkLoginParams()
     {
-        $userName = @$this->data['name'];
-        $pass = @$this->data['password'];
+        $email = @$this->data['email'];
+        $password = @$this->data['password'];
 
-        if (!isset($userName)) {
-            array_push($this->response, 'name required!');
+        if ($email == null or $email == '') {
+            array_push($this->response, 'email required!');
         }
 
-        if (!isset($pass)) {
+        if ($password == null or $password == '') {
             array_push($this->response, 'password required!');
         }
 
@@ -124,12 +120,12 @@ class UserConnection
 
     public function checkLogin()
     {
-        $userName = @$this->data['name'];
+        $email = @$this->data['email'];
         $pass = @$this->data['password'];
 
-        $stmt = 'SELECT * FROM `tbl_user` WHERE name = ? or email = ?';
+        $stmt = 'SELECT * FROM `tbl_user` WHERE email = ?';
         $stmt = $this->conn->prepare($stmt);
-        $stmt->bind_param('ss', $userName, $userName);
+        $stmt->bind_param('s', $email);
         if($stmt->execute()){
             $result = $stmt->get_result();
 
@@ -147,7 +143,7 @@ class UserConnection
                 if($row['status'] == 'NEW_USER'){
                     exit(json_encode([
                         'result' => false,
-                        'error' => 'Please active your account',
+                        'error' => 'Please activate your account',
                         'action' => 'NEW_USER'
                     ]));
                 }
@@ -156,7 +152,7 @@ class UserConnection
                     exit(json_encode(
                         [
                             'result' => true,
-                            'msg' => 'ok',
+                            'msg' => 'logged in',
                             'action' => 'ACTIVE_USER'
                         ]
                     ));
@@ -172,6 +168,117 @@ class UserConnection
             }
         }
     }
+
+    protected function getIdByUser($email)
+    {
+        if ($email == null or $email == '') array_push($this->response, 'email required!');
+        if (count($this->response) > 0) {
+            exit(
+            json_encode(
+                [
+                    'result' => false,
+                    'error' => $this->response,
+                    'action' => 'USER_NOT_FOUND'
+                ]
+            )
+            );
+        }
+
+        $stmt = 'SELECT * FROM `tbl_user` WHERE `email` = ?';
+        $stmt = $this->conn->prepare($stmt);
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if($result->num_rows > 0){
+            $row = $result->fetch_assoc();
+            return $row['id'];
+        }
+        return false;
+    }
+
+    public function forgotPassword()
+    {
+        $email = $this->data['email'];
+        if ($email == null or $email == '') array_push($this->response, 'email required!');
+        if (count($this->response) > 0) {
+            exit(
+            json_encode(
+                [
+                    'result' => false,
+                    'error' => $this->response,
+                    'action' => 'EMAIL_FIELD_REQUIRED'
+                ]
+            )
+            );
+        }
+        $userId = $this->getIdByUser($email);
+        if ($userId != false) {
+            $this->updateOrInsertRandomCode($userId, $email);
+        } else {
+            exit(json_encode(
+                [
+                    'result' => false,
+                    'error' => 'id not found',
+                    'action' => 'USER_NOT_FOUND'
+                ]
+            ));
+        }
+    }
+
+    public function resetPassword()
+    {
+        $email = $this->data['email'];
+        $new_password = $this->data['new_password'];
+        $code = $this->data['code'];
+        if ($email == null or $email == '') array_push($this->response, 'email required!');
+        if ($new_password == null or $email == '') array_push($this->response, 'new_password required!');
+        if ($code == null or $email == '') array_push($this->response, 'code required!');
+        if (count($this->response) > 0) {
+            exit(
+            json_encode(
+                [
+                    'result' => false,
+                    'error' => $this->response,
+                    'action' => 'RESET_PASSWORD_FAILED'
+                ]
+            )
+            );
+        }
+
+        $userId = $this->getIdByUser($email);
+        if ($userId != false){
+            $stmt = "SELECT * FROM tbl_auth WHERE user_id = ? and `code` = ?";
+            $stmt = $this->conn->prepare($stmt);
+            $stmt->bind_param("ii", $userId, $code);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if($result->num_rows > 0){
+                $password = hash('sha256', $new_password);
+                $stmt = "UPDATE `tbl_user` SET `hash_password` = ? WHERE `id` = ?";
+                $stmt = $this->conn->prepare($stmt);
+                $stmt->bind_param('ss',$password ,$userId);
+                $stmt->execute();
+
+                exit(json_encode(
+                    [
+                        'result' => true,
+                        'msg' => 'password updated',
+                        'action' => 'PASSWORD_UPDATE_SUCCESSFUL'
+                    ]
+                ));
+            }
+        } else {
+            exit(json_encode(
+                [
+                    'result' => false,
+                    'error' => 'id not found',
+                    'action' => 'USER_NOT_FOUND'
+                ]
+            ));
+        }
+
+    }
+
     public function checkAuth()
     {
         $userId = @$_POST['userId'];
@@ -184,13 +291,23 @@ class UserConnection
             $stmt->bind_param('is', $userId, $password);
             $stmt->execute();
             $result = $stmt->get_result();
-            return $result->num_rows > 0;
+            $row = $result->fetch_assoc();
+            if($row['status'] == 'ACTIVE_USER') return $result->num_rows > 0;
+            if ($row['status'] == 'NEW_USER') {
+                exit(json_encode(
+                    [
+                        'result' => false,
+                        'msg' => 'user not active',
+                        'action' => 'USER_NOT_ACTIVE'
+                    ]
+                ));
+            }
         } else {
             exit(json_encode(
                 [
                     'result' => false,
                     'msg' => 'auth error',
-                    'action' => 'NOT_AUTHORIZED'
+                    'action' => 'USER_NOT_FOUND'
                 ]
             ));
         }
@@ -250,7 +367,7 @@ class UserConnection
 
     public function checkActivationParams() : bool
     {
-        if (!isset($this->data['userId'])) array_push($this->response, 'userId required!');
+        if (!isset($this->data['email'])) array_push($this->response, 'email required!');
         if (!isset($this->data['code'])) array_push($this->response, 'code required!');
 
         if (count($this->response) > 0) {
@@ -269,9 +386,19 @@ class UserConnection
 
     public function checkActivationCode()
     {
+        $userId = $this->getIdByUser($this->data['email']);
+        if ($userId == false) {
+            exit(json_encode(
+                [
+                    'result' => false,
+                    'error' => 'user not found',
+                    'action' => 'USER_NOT_FOUND'
+                ]
+            ));
+        }
         $stmt = "SELECT * FROM tbl_auth WHERE user_id = ? ";
         $stmt = $this->conn->prepare($stmt);
-        $stmt->bind_param("i", $this->data['userId']);
+        $stmt->bind_param("i", $userId);
         $stmt->execute();
         $result = $stmt->get_result();
         if($result->num_rows <= 0) {
@@ -288,10 +415,10 @@ class UserConnection
         $row = $result->fetch_assoc();
         if ($row['code'] == $this->data['code']) {
             $now = strtotime(date("Y-m-d H:i:s"));
-            if (strtotime($row['date']) + 60 > $now){
+            if (strtotime($row['date']) + 120 > $now){
                 $stmt = "UPDATE `tbl_user` SET `status` = 'ACTIVE_USER' WHERE id = ?";
                 $stmt = $this->conn->prepare($stmt);
-                $stmt->bind_param("i",$this->data['userId']);
+                $stmt->bind_param("i",$userId);
                 if($stmt->execute()){
                     exit(
                     json_encode(
