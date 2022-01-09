@@ -20,7 +20,8 @@ class AccountingController
         if ($apiType == null) {
             exit(json_encode([
                 'result' => false,
-                'error' => 'apiType required'
+                'error' => 'apiType required',
+                'action' => 'NO_API_TYPE_IS_SENT'
             ]));
         }
 
@@ -35,7 +36,8 @@ class AccountingController
                     exit(json_encode(
                         [
                             'result' => false,
-                            'error' => $this->response
+                            'error' => $this->response,
+                            'action' => 'INSERTION_ERROR'
                         ]
                     ));
                 }
@@ -50,7 +52,8 @@ class AccountingController
                     exit(json_encode(
                         [
                             'result' => false,
-                            'error' => $this->response
+                            'error' => $this->response,
+                            'action' => 'SELECTION_ERROR'
                         ]
                     ));
                 }
@@ -65,7 +68,8 @@ class AccountingController
                     exit(json_encode(
                         [
                             'result' => false,
-                            'error' => $this->response
+                            'error' => $this->response,
+                            'action' => 'DELETION_ERROR'
                         ]
                     ));
                 }
@@ -84,7 +88,8 @@ class AccountingController
             echo json_encode(
                 [
                     'result' => true,
-                    'msg' => 'category inserted'
+                    'msg' => 'transaction inserted',
+                    'action' => 'INSERTED'
                 ]
             );
         }
@@ -105,7 +110,8 @@ class AccountingController
         echo json_encode(
             [
                 'result' => true,
-                'categories' => $transactions
+                'transactions' => $transactions,
+                'action' => 'SELECTED'
             ]
         );
     }
@@ -118,7 +124,8 @@ class AccountingController
         if ($stmt->execute()){
             echo json_encode([
                 'result' => true,
-                'msg' => 'deleted'
+                'msg' => 'deleted',
+                'action' => 'DELETED'
             ]);
         }
     }

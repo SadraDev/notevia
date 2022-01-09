@@ -21,7 +21,8 @@ class CategoryController
         if (!isset($apiType)) {
             exit(json_encode([
                 'result' => false,
-                'error' => 'api type required'
+                'error' => 'api type required',
+                'action' => 'NO_API_TYPE_IS_SENT'
             ]));
         }
 
@@ -35,7 +36,8 @@ class CategoryController
                 if (count($this->response) > 0) {
                     exit(json_encode([
                         'result' => false,
-                        'error' => $this->response
+                        'error' => $this->response,
+                        'action' => 'INSERTION_ERROR'
                     ]));
                 }
                 break;
@@ -48,7 +50,8 @@ class CategoryController
                 if (count($this->response) > 0) {
                     exit(json_encode([
                         'result' => false,
-                        'error' => $this->response
+                        'error' => $this->response,
+                        'action' => 'SELECTION_ERROR'
                     ]));
                 }
                 break;
@@ -61,7 +64,8 @@ class CategoryController
                 if (count($this->response) > 0) {
                     exit(json_encode([
                         'result' => false,
-                        'error' => $this->response
+                        'error' => $this->response,
+                        'action' => 'DELETION_ERROR'
                     ]));
                 }
                 break;
@@ -80,7 +84,8 @@ class CategoryController
             echo json_encode(
                 [
                     'result' => true,
-                    'msg' => 'category inserted'
+                    'msg' => 'category inserted',
+                    'action' => 'INSERTED'
                 ]
             );
         }
@@ -101,7 +106,8 @@ class CategoryController
         echo json_encode(
             [
                 'result' => true,
-                'categories' => $categories
+                'categories' => $categories,
+                'action' => 'SELECTED'
             ]
         );
     }
@@ -114,7 +120,8 @@ class CategoryController
         if ($stmt->execute()){
             echo json_encode([
                 'result' => true,
-                'msg' => 'deleted'
+                'msg' => 'deleted',
+                'action' => 'DELETED'
             ]);
         }
     }

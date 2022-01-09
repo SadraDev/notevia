@@ -34,7 +34,8 @@ class UserConnection
             json_encode(
                 [
                     'result' => false,
-                    'error' => $this->response
+                    'error' => $this->response,
+                    'action' => 'REGISTER_FAILED'
                 ]
             )
             );
@@ -43,7 +44,6 @@ class UserConnection
 
     public function checkExist()
     {
-
         $stmt = "SELECT * FROM `tbl_user` WHERE `name` = ? or `email` = ?";
         $stmt = $this->conn->prepare($stmt);
         $stmt->bind_param("ss", $this->data['name'], $this->data['email']);
@@ -64,12 +64,16 @@ class UserConnection
                     ]));
                 }
                 case "ACTIVE_USER" :{
-                    exit(json_encode(['result' => false, 'error' => 'User already exist!']));
+                    exit(json_encode(
+                        [
+                            'result' => false,
+                            'error' => 'User already exist!',
+                            'action' => 'ACTIVE_USER'
+                        ]
+                    ));
                 }
             }
         }
-
-        /// else user not exist and result is true
     }
 
     public function storeUser()
@@ -83,10 +87,11 @@ class UserConnection
         // mb_send_mail() in php 8, 8 < ~
         $this->updateOrInsertRandomCode($stmt->insert_id, $this->data['email']);
 
-        echo json_encode([
+        exit(json_encode([
             'result' => true,
-            'msg' => 'User inserted'
-        ]);
+            'msg' => 'Please verify your account',
+            'action' => "NEW_USER"
+        ]));
     }
 
 
@@ -109,7 +114,8 @@ class UserConnection
             json_encode(
                 [
                     'result' => false,
-                    'error' => $this->response
+                    'error' => $this->response,
+                    'action' => 'LOGIN_FAILED'
                 ]
             )
             );
@@ -131,28 +137,35 @@ class UserConnection
                 exit(json_encode(
                     [
                         'result' => false,
-                        'error' => 'user not exist'
+                        'error' => 'user not exist',
+                        'action' => 'NO_USER_FOUND'
                     ]
                 ));
             } else {
                 $row = $result->fetch_assoc();
 
                 if($row['status'] == 'NEW_USER'){
-                    exit(json_encode(['result' => false, 'error' => 'Please active your account']));
+                    exit(json_encode([
+                        'result' => false,
+                        'error' => 'Please active your account',
+                        'action' => 'NEW_USER'
+                    ]));
                 }
 
                 if ($row['hash_password'] == hash('sha256', $pass)) {
                     exit(json_encode(
                         [
                             'result' => true,
-                            'msg' => 'ok'
+                            'msg' => 'ok',
+                            'action' => 'ACTIVE_USER'
                         ]
                     ));
                 } else {
                     exit(json_encode(
                         [
                             'result' => false,
-                            'msg' => 'wrong password'
+                            'msg' => 'wrong password',
+                            'active' => 'WRONG_PASSWORD'
                         ]
                     ));
                 }
@@ -176,7 +189,8 @@ class UserConnection
             exit(json_encode(
                 [
                     'result' => false,
-                    'msg' => 'auth error'
+                    'msg' => 'auth error',
+                    'action' => 'NOT_AUTHORIZED'
                 ]
             ));
         }
@@ -210,7 +224,8 @@ class UserConnection
 
     private function updateOrInsertRandomCode($userId, $email)
     {
-        $rand = rand(100000, 999999);
+        $rand = rand(10000, 99999);
+        $now = date("Y-m-d H:i:s");
 
         $stmt = "SELECT * FROM tbl_auth WHERE user_id = ? ";
         $stmt = $this->conn->prepare($stmt);
@@ -218,17 +233,14 @@ class UserConnection
         $stmt->execute();
         $result = $stmt->get_result();
         if($result->num_rows > 0){
-            // update
-
-            $stmt = "UPDATE `tbl_auth` SET code = ? WHERE user_id = ?";
+            $stmt = "UPDATE `tbl_auth` SET `code` = ?, `date` = ? WHERE user_id = ?";
             $stmt = $this->conn->prepare($stmt);
-            $stmt->bind_param("ii", $rand ,$userId );
+            $stmt->bind_param("isi", $rand ,$now ,$userId );
 
         } else {
-
-            $stmt = "INSERT INTO `tbl_auth` (user_id , code) VALUES (?, ?)";
+            $stmt = "INSERT INTO `tbl_auth` (user_id , code, date) VALUES (?, ?, ?)";
             $stmt = $this->conn->prepare($stmt);
-            $stmt->bind_param("ii", $userId, $rand);
+            $stmt->bind_param("iis", $userId, $rand, $now);
 
         }
         $stmt->execute();
@@ -246,7 +258,8 @@ class UserConnection
                 json_encode(
                     [
                         'result' => false,
-                        'error' => $this->response
+                        'error' => $this->response,
+                        'action' => 'ACTIVATION_FAILED'
                     ]
                 )
             );
@@ -254,27 +267,51 @@ class UserConnection
         return true;
     }
 
-    public function checkActivationCode(){
-
+    public function checkActivationCode()
+    {
         $stmt = "SELECT * FROM tbl_auth WHERE user_id = ? ";
         $stmt = $this->conn->prepare($stmt);
         $stmt->bind_param("i", $this->data['userId']);
         $stmt->execute();
         $result = $stmt->get_result();
-        $code = $result->fetch_assoc();
-
-        if ($code['code'] == $this->data['code']) {
-            $stmt = "UPDATE `tbl_user` SET `status` = 'ACTIVE_USER' WHERE id = ?";
-            $stmt = $this->conn->prepare($stmt);
-            $stmt->bind_param("i",$this->data['userId']);
-            if($stmt->execute()){
-                exit(
+        if($result->num_rows <= 0) {
+            exit(
+                json_encode(
+                    [
+                        'result' => false,
+                        'error' => 'user not found',
+                        'action' => 'USER_NOT_FOUND'
+                    ]
+                )
+            );
+        }
+        $row = $result->fetch_assoc();
+        if ($row['code'] == $this->data['code']) {
+            $now = strtotime(date("Y-m-d H:i:s"));
+            if (strtotime($row['date']) + 60 > $now){
+                $stmt = "UPDATE `tbl_user` SET `status` = 'ACTIVE_USER' WHERE id = ?";
+                $stmt = $this->conn->prepare($stmt);
+                $stmt->bind_param("i",$this->data['userId']);
+                if($stmt->execute()){
+                    exit(
                     json_encode(
                         [
                             'result' => true,
-                            'msg' => 'account activated'
+                            'msg' => 'account activated',
+                            'action' => 'USER_ACTIVATED',
                         ]
                     )
+                    );
+                }
+            }else{
+                exit(
+                json_encode(
+                    [
+                        'result' => false,
+                        'msg' => 'code is expired!',
+                        'action' => 'CODE_EXPIRED'
+                    ]
+                )
                 );
             }
         } else {
@@ -282,7 +319,8 @@ class UserConnection
                 json_encode(
                     [
                         'result' => false,
-                        'error' => 'wrong code'
+                        'error' => 'wrong code',
+                        'action' => 'WRONG_CODE'
                     ]
                 )
             );
