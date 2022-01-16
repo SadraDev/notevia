@@ -80,9 +80,25 @@ class AccountingController
     }
 
     public function insertTransaction(){
-        $stmt = 'INSERT INTO `tbl_accounting` (`user_id`, `cat_id`, `transaction_value`, `transaction_type`) values (?,?,?,?)';
+        $file = @$_FILES['file'];
+        $fileName = null;
+        if(!empty($file)){
+            if($file['size'] > 2000000){
+                exit(json_encode(
+                    [
+                        'result' => false,
+                        'error' => 'file size too big',
+                        'action' => 'FILE_SIZE_OVER_LIMIT'
+                    ]
+                ));
+            }
+            $now = strtotime(date("Y-m-d H:i:s"));
+            $fileName = $this->post['userId'] . $now . ".jpeg";
+            move_uploaded_file($file['tmp_name'], '../uploads/' . $fileName);
+        }
+        $stmt = 'INSERT INTO `tbl_accounting` (`user_id`, `cat_id`, `transaction_value`, `transaction_type`, `description`, `title`, `file`) values (?,?,?,?,?,?,?)';
         $stmt = $this->conn->prepare($stmt);
-        $stmt->bind_param('iisi', $this->post['userId'], $this->post['catId'], $this->post['transactionValue'], $this->post['transactionType']);
+        $stmt->bind_param('iisisss', $this->post['userId'], $this->post['catId'], $this->post['transactionValue'], $this->post['transactionType'], $this->post['description'], $this->post['title'], $fileName);
         $result = $stmt->execute();
         if ($result) {
             echo json_encode(
@@ -90,6 +106,14 @@ class AccountingController
                     'result' => true,
                     'msg' => 'transaction inserted',
                     'action' => 'INSERTED'
+                ]
+            );
+        } else {
+            echo json_encode(
+                [
+                    'result' => false,
+                    'msg' => 'transaction didnt inserted',
+                    'action' => 'INSERT_FAILED'
                 ]
             );
         }
